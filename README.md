@@ -1,6 +1,6 @@
 # sshpunc -- Puncture firewall using docker
 
-![CI Status](https://github.com/tkw1536/sshpunc/workflows/docker/badge.svg)
+[![Publish Docker Image](https://github.com/tkw1536/sshpunc/actions/workflows/docker.yml/badge.svg)](https://github.com/tkw1536/sshpunc/actions/workflows/docker.yml)
 
 This repository contains a docker image that port forwards to a remote ssh server.
 The code is licensed under the Unlicense, hence in the public domain. 
