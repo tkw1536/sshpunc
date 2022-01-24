@@ -7,9 +7,9 @@ RUN apk add --no-cache \
 
 ADD script.sh /script.sh
 
-# put the ssh key in /data/id_rsa
-VOLUME /data/
-ENV SSHKEY /data/id_rsa
+# put the ssh key in /data/id
+VOLUME /data/id
+ENV SSHKEY /data/id
 
 # setup the local address
 EXPOSE 8080
