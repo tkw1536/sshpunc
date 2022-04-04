@@ -11,3 +11,5 @@ To start it up run:
 ```
 docker run --rm -ti -p 8080:8080 -v $(pwd)/id_rsa:/data/id:ro -e SSHHOST=username@server.com -e REMOTEADDR=internal.lan:80 ghcr.io/tkw1536/sshpunc
 ```
+
+SSHHOST may contain several comma-seperated hostnames. Each must come with a username.

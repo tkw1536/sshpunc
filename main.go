@@ -17,9 +17,9 @@ import (
 
 func main() {
 	// parse hostname
-	user, host, err := splitHost(sshHost)
+	users, addrs, err := splitHosts(sshHost)
 	if err != nil {
-		log.Fatalf("Unable to parse hostname %s: %s", sshHost, err)
+		log.Fatalf("Unable to parse hostnames %s: %s", sshHost, err)
 	}
 
 	// read the private key
@@ -29,16 +29,17 @@ func main() {
 	}
 	log.Printf("Loaded private key from %s", sshKey)
 
-	// setup a connection (we're not going to use it for a bit)
+	// setup a ClientConfig for each hop
 	// this might already be gone by the time someone connects, but that does not matter.
-	config := &ssh.ClientConfig{
-		User: user,
-		Auth: []ssh.AuthMethod{
-			pk,
-		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	configs := make([]*ssh.ClientConfig, len(addrs))
+	for i, user := range users {
+		configs[i] = &ssh.ClientConfig{
+			User:            user,
+			Auth:            []ssh.AuthMethod{pk},
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		}
 	}
-	go connect(host, config)
+	go connect(addrs, configs) // to speed up startup
 
 	// start listening locally
 	listener, err := net.Listen("tcp", localAddr)
@@ -58,7 +59,7 @@ func main() {
 				continue
 			}
 
-			go forward(conn, remoteAddr, host, config)
+			go forward(conn, remoteAddr, addrs, configs)
 		}
 	}()
 
@@ -71,7 +72,24 @@ func main() {
 // PARSER
 //
 
-func splitHost(host string) (user, addr string, err error) {
+func splitHosts(hosts string) (users []string, addrs []string, err error) {
+	// split into individual strings
+	hostSlice := strings.Split(hosts, ",")
+	users = make([]string, len(hostSlice))
+	addrs = make([]string, len(hostSlice))
+
+	// split each host
+	for i, host := range hostSlice {
+		users[i], addrs[i], err = splitSingleHost(host)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return users, addrs, nil
+}
+
+func splitSingleHost(host string) (user, addr string, err error) {
 	if !strings.ContainsRune(host, '@') {
 		return "", "", errors.New("host does not contain a username")
 	}
@@ -105,25 +123,24 @@ func readPrivateKey(path string) (ssh.AuthMethod, error) {
 //
 
 var client *ssh.Client
+var clientCloser io.Closer
 var clientMutex sync.Mutex
 
-func connect(addr string, config *ssh.ClientConfig) (c *ssh.Client, e error) {
+func connect(addrs []string, configs []*ssh.ClientConfig) (*ssh.Client, error) {
 	clientMutex.Lock()
 	defer clientMutex.Unlock()
 
-	// if we already have a client send a keepalive packet
-	// and re-use the client if we can!
-	if client != nil {
-		_, _, err := client.Conn.SendRequest("keepalive@golang.org", true, nil)
-		if err == nil {
-			return client, nil
-		}
+	// if the client is still alive, return it!
+	if clientAlive(client, clientCloser) {
+		return client, nil
 	}
 
-	// we need to make a new connection!
-	log.Printf("Establishing new connection to %s", addr)
+	// setup a new client, and make sure to return nil on error!
 	var err error
-	client, err = ssh.Dial("tcp", addr, config)
+	client, clientCloser, err = newClient(addrs, configs)
+	if err != nil {
+		client = nil
+	}
 	return client, err
 }
 
@@ -137,13 +154,12 @@ var waitPool = &sync.Pool{
 	},
 }
 
-func forward(conn net.Conn, remoteAddr string, addr string, config *ssh.ClientConfig) {
+func forward(conn net.Conn, remoteAddr string, addrs []string, configs []*ssh.ClientConfig) {
 	defer conn.Close()
 
 	// get or make a new client
-	client, err := connect(addr, config)
+	client, err := connect(addrs, configs)
 	if err != nil {
-		log.Printf("Failed to connect to %s: %s", addr, err)
 		return
 	}
 
