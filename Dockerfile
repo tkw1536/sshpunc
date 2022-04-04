@@ -10,9 +10,7 @@
 FROM golang as build
 
 # build the app
-ADD main.go /app/main.go
-ADD go.mod /app/go.mod
-ADD go.sum /app/go.sum
+ADD . /app/
 WORKDIR /app/
 RUN go get -v ./...
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/sshproc .
