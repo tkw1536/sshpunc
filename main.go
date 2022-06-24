@@ -144,6 +144,14 @@ func connect(addrs []string, configs []*ssh.ClientConfig) (*ssh.Client, error) {
 	return client, err
 }
 
+func reconnect(addrs []string, configs []*ssh.ClientConfig) (*ssh.Client, error) {
+	clientMutex.Lock()
+	client = nil
+	clientMutex.Unlock()
+
+	return connect(addrs, configs)
+}
+
 //
 // forwarding
 //
@@ -166,7 +174,20 @@ func forward(conn net.Conn, remoteAddr string, addrs []string, configs []*ssh.Cl
 	// make a new connection to the remote address
 	dest, err := client.Dial("tcp", remoteAddr)
 	if err != nil {
-		log.Printf("Failed to dial %s: %s", remoteAddr, err)
+		log.Printf("Failed to dial %s, attempting to reconnect: %s", remoteAddr, err)
+
+		// get or make a new client
+		client, err := reconnect(addrs, configs)
+		if err != nil {
+			return
+		}
+
+		// make a new connection to the remote address
+		dest, err = client.Dial("tcp", remoteAddr)
+		if err != nil {
+			log.Printf("Failed to dial %s (final): %s", remoteAddr, err)
+			return
+		}
 		return
 	}
 
