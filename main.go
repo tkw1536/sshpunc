@@ -188,7 +188,6 @@ func forward(conn net.Conn, remoteAddr string, addrs []string, configs []*ssh.Cl
 			log.Printf("Failed to dial %s (final): %s", remoteAddr, err)
 			return
 		}
-		return
 	}
 
 	// copy input / output
