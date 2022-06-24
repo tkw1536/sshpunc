@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -145,11 +146,31 @@ func connect(addrs []string, configs []*ssh.ClientConfig) (*ssh.Client, error) {
 }
 
 func reconnect(addrs []string, configs []*ssh.ClientConfig) (*ssh.Client, error) {
-	clientMutex.Lock()
-	client = nil
-	clientMutex.Unlock()
+	// make a new connection
+	nClient, nClientCloser, err := newClient(addrs, configs)
+	if err != nil {
+		return nil, err
+	}
 
-	return connect(addrs, configs)
+	// lock the client mutex
+	clientMutex.Lock()
+	defer clientMutex.Unlock()
+
+	// store it!
+	client, clientCloser = nClient, nClientCloser
+	return nClient, nil
+}
+
+const counterCycle = uint64(1000)
+
+var counter uint64
+
+func scheduleReconnect(addrs []string, configs []*ssh.ClientConfig) {
+	if atomic.AddUint64(&counter, 1)%uint64(counterCycle) != 0 {
+		return
+	}
+	log.Println("scheduling reconnect")
+	go reconnect(addrs, configs)
 }
 
 //
@@ -189,6 +210,9 @@ func forward(conn net.Conn, remoteAddr string, addrs []string, configs []*ssh.Cl
 			return
 		}
 	}
+
+	// reconnect every couple connections
+	go scheduleReconnect(addrs, configs)
 
 	// copy input / output
 
