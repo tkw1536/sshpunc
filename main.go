@@ -16,11 +16,13 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// spellchecker:words hostnames sshhost sshkey localaddr remoteaddr
+
 func main() {
 	// parse hostname
 	users, addrs, err := splitHosts(sshHost)
 	if err != nil {
-		log.Fatalf("Unable to parse hostnames %s: %s", sshHost, err)
+		log.Fatalf("Unable to split hostnames %s: %s", sshHost, err)
 	}
 
 	// read the private key
@@ -251,13 +253,10 @@ var globalContext context.Context
 
 func init() {
 	var cancel context.CancelFunc
-	globalContext, cancel = context.WithCancel(context.Background())
-
-	cancelChan := make(chan os.Signal)
-	signal.Notify(cancelChan, os.Interrupt)
+	globalContext, cancel = signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 
 	go func() {
-		<-cancelChan
+		<-globalContext.Done()
 		cancel()
 	}()
 }

@@ -78,13 +78,13 @@ func connectHop(proxy *ssh.Client, addr string, config *ssh.ClientConfig) (*ssh.
 	}
 
 	// make the client connection
-	c, chans, reqs, err := ssh.NewClientConn(conn, addr, config)
+	c, channels, reqs, err := ssh.NewClientConn(conn, addr, config)
 	if err != nil {
 		return nil, err
 	}
 
 	// and finally the new ssh client
-	return ssh.NewClient(c, chans, reqs), nil
+	return ssh.NewClient(c, channels, reqs), nil
 }
 
 // clientAlive checks if the connection to client is still active and sending data.
