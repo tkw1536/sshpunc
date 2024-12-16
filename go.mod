@@ -1,6 +1,6 @@
 module github.com/tkw1536/sshpunc
 
-go 1.17
+go 1.23
 
 require golang.org/x/crypto v0.31.0
 
